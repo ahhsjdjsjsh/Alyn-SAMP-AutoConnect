@@ -1,0 +1,59 @@
+name: Build Alyn AutoConnect APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out AutoConnect configuration
+        uses: actions/checkout@v4
+
+      - name: Check out pinned Alyn source
+        uses: actions/checkout@v4
+        with:
+          repository: Fiki-io/alyn-remake
+          ref: 2cbb0757572a3e17aa6b4da82d6c7fcd4327eeb1
+          path: upstream
+
+      - name: Import Alyn source
+        run: rsync -a --exclude='.git' upstream/ ./
+
+      - name: Apply AutoConnect configuration
+        run: python3 .github/scripts/patch_launcher.py
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK and CMake
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;25.1.8937393" "cmake;3.22.1"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: alyn-autoconnect-debug
+          path: app/build/outputs/apk/debug/alyn_sampmobile.apk
+          if-no-files-found: error
+          retention-days: 14
